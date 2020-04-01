@@ -1,6 +1,29 @@
 ﻿/*
+ Author:	Lc
+ 
+ For being able to connect to Wifi using ESP01(8266EX), use the following settings :
+	ESP core : 2.5.2
+	Board : Generic ESP8266
+	Upload speed : 115200
+	Cpu freq : 80Mhz
+	Crystal Freq: 26Mhz
+	Flash size : 1M(64k SPIFFS)
+	Flash mode : DOUT
+	Flash freq : 40Mhz
+	Reset method : ck
+	Debug port : Disabled 
+	Debug lvl : none
+	IwIP varian : v2 Lower Memory
+	Vtables : Flash
+	Exceptions : disabled 
+	Build in Leds : 2
+	Erase flash : only sketch
+	Espressif FW : nonos-sdk 2.2.1(legacy)
+	SSL support : all SSL ciphers
 
- Author:	Lce
+ After arduino file compiled successfully set the ESP8266 to enter boot mode and Build/Upload the application.
+ After upload, unplug and plug back the esp in the debugger for being able to run the application.
+ Details can be seen in the debugger.
 */
 
 #include <ArduinoJson.hpp>
@@ -40,7 +63,7 @@ float voltage_bat, tempInt, tempExt;
 char v_str[10], temp_str_1[10], temp_str_2[10];
 char sms_data1[50], sms_data2[50], sms_data3[50];
 long temp_1, lastMsg;
-int aux, retry_number;
+int aux, retry_number, retry_wifi;
 String formattedDate, create_name;
 char sensor_tele2[100], sensor_tele[100], state_tele[100];
 void setup() {
@@ -74,10 +97,15 @@ void setup_wifi() {
 	Serial.println(wifi_ssid);
 
 	WiFi.begin(wifi_ssid, wifi_password);
-
+	retry_wifi = 0;
 	while (WiFi.status() != WL_CONNECTED) {
 		delay(500);
 		Serial.print(".");
+		if (retry_wifi > 20)
+		{
+			WiFi.disconnect();
+			ESP.deepSleep(60 * 1000 * 1000 * device_wait);
+		}
 	}
 
 	Serial.println("");

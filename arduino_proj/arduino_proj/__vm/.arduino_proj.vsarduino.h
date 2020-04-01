@@ -18,7 +18,7 @@
 #define _VMDEBUG 1
 #define __ets__
 #define ICACHE_FLASH
-#define NONOSDK22x_190703 1
+#define NONOSDK221 1
 #define F_CPU 80000000L
 #define LWIP_OPEN_SRC
 #define TCP_MSS 536
@@ -29,7 +29,6 @@
 #define ARDUINO_ARCH_ESP8266
 #define LED_BUILTIN 2
 #define FLASHMODE_DOUT
-#define F_CRYSTAL 40000000
 #define ESP8266
 #define __cplusplus 201103L
 #undef __cplusplus
