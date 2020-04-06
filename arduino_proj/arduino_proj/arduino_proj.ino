@@ -99,6 +99,7 @@ void setup_wifi() {
 	WiFi.begin(wifi_ssid, wifi_password);
 	retry_wifi = 0;
 	while (WiFi.status() != WL_CONNECTED) {
+		retry_wifi++;
 		delay(500);
 		Serial.print(".");
 		if (retry_wifi > 20)
