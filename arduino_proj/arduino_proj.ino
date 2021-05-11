@@ -1,6 +1,5 @@
-﻿/*
- Author:	Lc
- 
+
+/* Author:	Lc
  For being able to connect to Wifi using ESP01(8266EX), use the following settings :
 	ESP core : 2.5.2
 	Board : Generic ESP8266
@@ -34,20 +33,14 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include "user_data_node.h"
+#include "my_user_data_node.h"
 
 #define device_mode 1
-// Data wire is plugged into pin 2 on the Arduino 
 #define ONE_WIRE_BUS 2//on gpio12
-//#define SENSOR_POWER_PIN 0//on gpio12
 /*
  * 0 - timer activated set from device wait [min]
  * 1 - deep sleep mode activated set from device wait in [min]
  */
-
-
- // Create abjects
-
 WiFiClient espClient;
 PubSubClient client(espClient);
 // Setup a oneWire instance to communicate with any OneWire devices  
@@ -59,37 +52,34 @@ ADC_MODE(ADC_VCC);
 DallasTemperature sensors(&oneWire);
 /********************************************************************/
 
-float voltage_bat, tempInt, tempExt;
-char v_str[10], temp_str_1[10], temp_str_2[10];
-char sms_data1[50], sms_data2[50], sms_data3[50];
+float voltage_bat, temp00, temp01, temp02;
+char v_str[10], temp_str_1[10], temp_str_2[10], temp_str_3[10];
+char sendData1[50], sendData2[50], sendData3[50], sendData4[50];
 long temp_1, lastMsg;
 int aux, retry_number, retry_wifi;
-String formattedDate, create_name;
-char sensor_tele2[100], sensor_tele[100], state_tele[100];
+String formattedDate, create_name01, create_name02, create_name03;
+char payload01[100], payload02[100], payload03[100];
+char JSONmessageBuffer[150], JSONmessageBuffer2[150], JSONmessageBuffer3[150];
+  
 void setup() {
 	//pinMode(SENSOR_POWER_PIN, OUTPUT);
 	//digitalWrite(SENSOR_POWER_PIN, HIGH);
 	//delay(1000);
-	strcpy(sensor_tele, device_name);
-	strcat(sensor_tele, "/tele/sensor");
-	strcpy(state_tele, device_name);
-	strcat(state_tele, "/tele/state");
+	strcpy(payload01, device_name);
+	strcat(payload01, "/info");
+	strcpy(payload02, device_name);
+	strcat(payload02, "/sensor");
+  strcpy(payload03, device_name);
+  strcat(payload03, "/data");
 	aux = 1;
 	Serial.begin(115200);
 	sensors.begin();
 	delay(100);
-	//set resolution to 10bit.
-	//sensors.setResolution(ExteriorThermometer, 10);
-	//sensors.setResolution(InsideThermometer, 10);
-	//sensors.setResolution(ExteriorThermometer, 9);
-	//sensors.setResolution(InsideThermometer, 9);
-	//delay(100);
-	setup_wifi();           //Connect to Wifi network
-	client.setServer(mqtt_server, 1883);    // Configure MQTT connexion
-		   // callback function to execute when a MQTT message   
+
+	setup_wifi();     
+	client.setServer(mqtt_server, 1883);   
 }
 
-//Connexion au r�seau WiFi
 void setup_wifi() {
 	delay(10);
 	Serial.println();
@@ -102,9 +92,11 @@ void setup_wifi() {
 		retry_wifi++;
 		delay(500);
 		Serial.print(".");
-		if (retry_wifi > 20)
+		if (retry_wifi > 40)
 		{
 			WiFi.disconnect();
+      delay(500);
+      Serial.print("WiFi error! entering deep sleep");
 			ESP.deepSleep(60 * 1000 * 1000 * device_wait);
 		}
 	}
@@ -115,7 +107,6 @@ void setup_wifi() {
 	Serial.println(WiFi.localIP());
 }
 
-//Reconnexion
 void reconnect() {
 	String clientId;
 	char espname[14];
@@ -187,73 +178,77 @@ void loop() {
 	}
 }
 
-
 void send_mqtt_data()
 {
 	voltage_bat = (float)ESP.getVcc() / 1024.0f;
 	dtostrf(voltage_bat, 3, 1, v_str);
-	snprintf(sms_data1, 30, "%s", v_str);
+	snprintf(sendData1, 30, "%s", v_str);
+ 
 	sensors.requestTemperatures();
 	delay(100);
-	tempInt = sensors.getTempC(InsideThermometer);
-	tempExt = sensors.getTempC(ExteriorThermometer);
-	dtostrf(tempInt, 6, 2, temp_str_1);
-	snprintf(sms_data2, 30, "%s", temp_str_1);
-	dtostrf(tempExt, 6, 2, temp_str_2);
-	snprintf(sms_data3, 30, "%s", temp_str_2);
-	StaticJsonBuffer<300> JSONbuffer, JSONbuffer2;
+ 
+  temp00 = sensors.getTempC(OnBoardThermometer);
+	temp01 = sensors.getTempC(FirstThermometer);
+	temp02 = sensors.getTempC(SecondThermometer);
+ 
+  dtostrf(temp00, 6, 2, temp_str_1);
+  snprintf(sendData2, 30, "%s", temp_str_1);
+	dtostrf(temp01, 6, 2, temp_str_2);
+	snprintf(sendData3, 30, "%s", temp_str_2);
+	dtostrf(temp02, 6, 2, temp_str_3);
+	snprintf(sendData4, 30, "%s", temp_str_3);
+  
+	StaticJsonBuffer<300> JSONbuffer, JSONbuffer2, JSONbuffer3;
 	JsonObject& JSONencoder = JSONbuffer.createObject();
 	JsonObject& JSONencoder2 = JSONbuffer2.createObject();
+  JsonObject& JSONencoder3 = JSONbuffer3.createObject();
+  
 	JSONencoder["Name"] = device_name;
-	JSONencoder["Voltage"] = sms_data1;
-	if ((tempInt != -127) && (tempInt != 25))
-		JSONencoder["In"] = sms_data2;
-	else
-	{
-		create_name = "";
-		for (int count_1 = 0;count_1 < 8;count_1++)
-		{
-			create_name += String(InsideThermometer[count_1], HEX);
-			create_name += " ";
-		}
-		JSONencoder2["In"] = create_name;
-		create_name = "";
-	}
-	if ((tempExt != -127) && (tempInt != 25))
-		JSONencoder["Out"] = sms_data3;
-	else
-	{
-		create_name = "";
-		for (int count_1 = 0;count_1 < 8;count_1++)
-		{
-			create_name += String(ExteriorThermometer[count_1], HEX);
-			create_name += " ";
-		}
-		JSONencoder2["Out"] = create_name;
-		create_name = "";
-	}
-	char JSONmessageBuffer[150];
-	char JSONmessageBuffer2[150];
+	JSONencoder["Voltage"] = sendData1;
+
+  create_name01 = "";
+  create_name02 = "";
+  create_name03 = "";
+  for (int count_1 = 0;count_1 < 8;count_1++)
+    {
+      create_name01 += String(OnBoardThermometer[count_1], HEX);
+      create_name01 += " ";
+      create_name02 += String(FirstThermometer[count_1], HEX);
+      create_name02 += " ";
+      create_name03 += String(SecondThermometer[count_1], HEX);
+      create_name03 += " ";
+    }
+
+  JSONencoder2["OnBoard"] = create_name01;
+  JSONencoder2["temp01"] = create_name02;
+  JSONencoder2["temp02"] = create_name03;
+ 
+	JSONencoder3["OnBoard"] = sendData2;
+  JSONencoder3["temp01"] = sendData3;
+  JSONencoder3["temp02"] = sendData4;
+
 	JSONencoder.printTo(JSONmessageBuffer, sizeof(JSONmessageBuffer));
 	JSONencoder2.printTo(JSONmessageBuffer2, sizeof(JSONmessageBuffer2));
+  JSONencoder3.printTo(JSONmessageBuffer3, sizeof(JSONmessageBuffer3));
+ 
 	Serial.print("send mqtt topic : ");
-	Serial.println(sensor_tele);
+	Serial.println(payload01);
 	Serial.print("JSON: ");
 	Serial.println(JSONmessageBuffer);
-	client.publish(sensor_tele, JSONmessageBuffer);
+	client.publish(payload01, JSONmessageBuffer);
 
-	strcpy(sensor_tele2, sensor_tele);
-	strcat(sensor_tele2, "info");
 	Serial.print("send mqtt topic2 : ");
-	Serial.println(sensor_tele2);
+	Serial.println(payload02);
 	Serial.print("JSON2: ");
 	Serial.println(JSONmessageBuffer2);
-	client.publish(sensor_tele2, JSONmessageBuffer2);
+	client.publish(payload02, JSONmessageBuffer2);
+
+  Serial.print("send mqtt topic3 : ");
+  Serial.println(payload03);
+  Serial.print("JSON3: ");
+  Serial.println(JSONmessageBuffer3);
+  client.publish(payload03, JSONmessageBuffer3);
 
 	lastMsg = temp_1;
-	//Serial.println("send mqtt");
-	//Serial.println(sms_data1);
-	Serial.println();
-	//client.publish(sensor_tele, "1",true);   // Publish temperature on temperature_topic
-	//client.publish(state_tele,sms_data1, true);    
+	Serial.println();   
 }
