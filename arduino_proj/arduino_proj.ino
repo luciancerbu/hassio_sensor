@@ -33,7 +33,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include "my_user_data_node.h"
+#include "user_data_node.h"
 
 #define device_mode 1
 #define ONE_WIRE_BUS 2//on gpio12
